@@ -1,0 +1,59 @@
+{
+  "name": "ryan",
+  "version": "1.0.0",
+  "description": "Lumen e-learning",
+  "main": "main/main.js",
+  "scripts": {
+    "dev": "concurrently \"next dev renderer\" \"wait-on http://localhost:3000 && NODE_ENV=development electron .\"",
+    "dev:web": "next dev renderer",
+    "build": "next build renderer",
+    "build:renderer": "next build renderer",
+    "dist:win": "npm run build:renderer && electron-builder --win",
+    "start": "next start renderer",
+    "electron": "NODE_ENV=development electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "build": {
+    "appId": "com.ryan.lumen",
+    "productName": "Lumen",
+    "files": [
+      "main/**/*",
+      "renderer/out/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "asar": true
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@livekit/components-react": "^2.10.7",
+    "@supabase/supabase-js": "^2.49.4",
+    "livekit-client": "^2.10.1",
+    "livekit-server-sdk": "^2.13.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^42.0.1",
+    "electron-builder": "^26.8.1",
+    "next": "^16.2.6",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "wait-on": "^9.0.10"
+  }
+}
