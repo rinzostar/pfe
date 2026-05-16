@@ -6,6 +6,7 @@ const PALETTES = [
 ];
 
 function hash(str = '') {
+  if (str == null) str = '';
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
   return Math.abs(h);

@@ -1,16 +1,16 @@
 import Layout from '../components/Layout';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../lib/auth';
 import {
   getModule, listCoursesByModule, listAttachments,
   getActiveLivestreamForModule, toggleFavorite, listFavorites, endLivestream,
   createCourse, deleteCourse, updateCourse, createAttachment, deleteAttachment, updateModule,
+  listAccessRequests,
 } from '../lib/db';
-import { publicUrl, uploadFile } from '../lib/storage';
 import { toast } from '../lib/toast';
-import { chatWithCourse, generateCourseDraft } from '../lib/aiClient';
+import FadeIn from '../components/FadeIn';
 
 function ytEmbed(url) {
   if (!url) return null;
@@ -22,88 +22,91 @@ function firstYoutubeLink(text) {
   return text?.match(/https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}[^\s]*/)?.[0] || null;
 }
 
-function canPreviewFile(fileName = '', path = '') {
-  const value = `${fileName} ${path}`.toLowerCase();
-  return /\.(png|jpe?g|gif|webp|pdf)$/i.test(value);
-}
-
-function AttachmentPreview({ attachment }) {
-  const url = publicUrl('course-files', attachment.file_path);
-  const name = attachment.file_name || '';
-  const isImage = /\.(png|jpe?g|gif|webp)$/i.test(name || url);
-  const isPdf = /\.pdf$/i.test(name || url);
-  if (!canPreviewFile(name, url)) return null;
-  return (
-    <div className="embed-box">
-      {isImage ? (
-        <img src={url} alt={name} />
-      ) : isPdf ? (
-        <iframe src={url} title={name} />
-      ) : null}
-    </div>
-  );
+function handleAttachmentClick(fileName, filePath) {
+  const isPdf = /\.pdf$/i.test(fileName || filePath);
+  const isDoc = /\.(docx?|pptx?)$/i.test(fileName || filePath);
+  if (isPdf && filePath && filePath !== '#') {
+    window.open(filePath, '_blank');
+  } else if (isDoc && filePath && filePath !== '#') {
+    const a = document.createElement('a');
+    a.href = filePath;
+    a.download = fileName || 'download';
+    a.click();
+  } else {
+    toast.info('File not available for download');
+  }
 }
 
 export default function Module() {
   const router = useRouter();
   const { user } = useAuth();
-  const id = router.query.id;
+  const [moduleId, setModuleId] = useState(null);
+  const initialCourseRef = useRef(null);
   const [mod, setMod] = useState(null);
   const [loading, setLoading] = useState(true);
   const [courses, setCourses] = useState([]);
-  const [attach, setAttach] = useState([]);
   const [live, setLive] = useState(null);
   const [favs, setFavs] = useState(new Set());
   const [openCourse, setOpenCourse] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState(null); // course object
+  const [editing, setEditing] = useState(null);
   const [editingModule, setEditingModule] = useState(false);
   const [moduleName, setModuleName] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', content: '' });
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiError, setAiError] = useState('');
-  const [geminiKeyInput, setGeminiKeyInput] = useState('');
-  const [openRouterKeyInput, setOpenRouterKeyInput] = useState('');
-  const [chatText, setChatText] = useState('');
-  const [chatBusy, setChatBusy] = useState(false);
-  const [chatError, setChatError] = useState('');
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatModel, setChatModel] = useState('google'); // 'google' or 'openrouter'
-  const playerRef = useRef(null);
+  const [hasAccess, setHasAccess] = useState(false);
 
-  const isOwner = user && mod && user.id === mod.owner_id;
+  const isOwner = user && mod && user.id === mod.ownerId;
   const isAdmin = user?.role === 'admin';
-  const canManage = !!user && (isAdmin || isOwner);
+  const canManage = !!user && (isAdmin || isOwner || hasAccess);
   const canStartLive = canManage;
 
   const refresh = async () => {
-    if (!id) return;
-    const [m, c, l] = await Promise.all([
-      getModule(id),
-      listCoursesByModule(id),
-      getActiveLivestreamForModule(id),
-    ]);
-    setMod(m.data);
-    setModuleName(m.data?.name || '');
-    setCourses(c.data || []);
-    setLive(l.data);
-    if (c.data?.[0] && !openCourse) setOpenCourse(c.data[0]);
-    if (user) {
-      const { data: f } = await listFavorites(user.id);
-      setFavs(new Set((f || []).map(x => x.id)));
+    const currentId = router.isReady ? router.query.id : null;
+    if (!currentId || currentId === 'undefined' || currentId === 'null') {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+    setModuleId(currentId);
+    try {
+      const [m, c, l] = await Promise.all([
+        getModule(currentId),
+        listCoursesByModule(currentId),
+        getActiveLivestreamForModule(currentId),
+      ]);
+      setMod(m.data);
+      setModuleName(m.data?.name || '');
+      setCourses(c.data || []);
+      setLive(l.data);
+      if (user) {
+        const { data: f } = await listFavorites(user.id);
+        setFavs(new Set((f || []).map(x => x.id)));
+        if (!isOwner && user.role === 'professor') {
+          const { data: reqs } = await listAccessRequests();
+          const approved = (reqs || []).find(r => String(r.moduleId) === String(currentId) && r.professorId === user.id && r.status === 'approved');
+          setHasAccess(!!approved);
+        }
+      }
+      if (c.data?.[0]) {
+        const ic = router.isReady ? router.query.course : null;
+        if (ic) {
+          const found = c.data.find(x => String(x.id) === String(ic));
+          setOpenCourse(found || c.data[0]);
+        } else if (!openCourse) {
+          setOpenCourse(c.data[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Module refresh error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [id, user?.id]);
 
   useEffect(() => {
-    if (!openCourse) { setAttach([]); return; }
-    listAttachments({ courseId: openCourse.id }).then(({ data }) => setAttach(data || []));
-    setChatMessages([]);
-    setChatText('');
-  }, [openCourse?.id]);
+    if (!router.isReady) return;
+    refresh();
+  }, [router.isReady, user?.id]);
 
   const star = async (cid) => {
     if (!user) return;
@@ -118,11 +121,11 @@ export default function Module() {
 
   const onAddCourse = async (e) => {
     e.preventDefault();
-    if (!newCourse.title) return;
+    if (!newCourse.title || !moduleId) return;
     setBusy(true);
     try {
       const { data, error } = await createCourse({
-        module_id: Number(id),
+        moduleId: String(moduleId),
         title: newCourse.title.trim(),
         content: newCourse.content.trim(),
         yt_url: firstYoutubeLink(newCourse.content),
@@ -137,54 +140,12 @@ export default function Module() {
     setBusy(false);
   };
 
-  const onGenerateCourse = async () => {
-    if (!aiPrompt.trim()) return;
-    setAiBusy(true);
-    setAiError('');
-    try {
-      const course = await generateCourseDraft({
-        moduleName: mod?.name,
-        request: aiPrompt.trim(),
-        provider: chatModel,
-      });
-      setNewCourse({
-        title: course.title || '',
-        content: course.content || '',
-      });
-      toast.success('Course draft generated');
-    } catch (err) {
-      setAiError(err.message);
-      toast.error('AI setup needs attention');
-    }
-    setAiBusy(false);
-  };
-
-  const saveGeminiKey = () => {
-    const key = geminiKeyInput.trim();
-    if (!key) return;
-    localStorage.setItem('gemini_api_key', key);
-    setGeminiKeyInput('');
-    setAiError('');
-    setChatError('');
-    toast.success('Gemini key saved');
-  };
-
-  const saveOpenRouterKey = () => {
-    const key = openRouterKeyInput.trim();
-    if (!key) return;
-    localStorage.setItem('openrouter_api_key', key);
-    setOpenRouterKeyInput('');
-    setAiError('');
-    setChatError('');
-    toast.success('OpenRouter key saved');
-  };
-
   const onUpdateModule = async (e) => {
     e.preventDefault();
     if (!moduleName.trim()) return;
     setBusy(true);
     try {
-      const { error } = await updateModule(id, { name: moduleName.trim() });
+      const { error } = await updateModule(moduleId, { name: moduleName.trim() });
       if (error) throw error;
       setMod(prev => ({ ...prev, name: moduleName.trim() }));
       setEditingModule(false);
@@ -235,139 +196,102 @@ export default function Module() {
     if (!f) return;
     setBusy(true);
     try {
-      const up = await uploadFile('course-files', f);
-      const { error } = await createAttachment({ course_id: courseId, file_path: up.path, file_name: up.name });
+      const fileName = f.name;
+      const fileType = fileName.endsWith('.pdf') ? 'pdf' : fileName.endsWith('.docx') ? 'docx' : fileName.endsWith('.pptx') ? 'pptx' : 'file';
+      const { error } = await createAttachment({ course_id: courseId, file: f, file_name: fileName, file_type: fileType });
       if (error) throw error;
       toast.success('File uploaded');
-      if (openCourse?.id === courseId) {
-        const { data } = await listAttachments({ courseId });
-        setAttach(data || []);
-      }
+      await refresh();
     } catch (err) { toast.error(err.message); }
     setBusy(false);
     e.target.value = '';
   };
 
-  const onRemoveAttach = async (aid) => {
-    if (!confirm('Remove this attachment?')) return;
-    const { error } = await deleteAttachment(aid);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setAttach(prev => prev.filter(x => x.id !== aid));
-    toast.success('Attachment removed');
-  };
-
-  const askCourse = async (mode = 'chat') => {
-    if (!openCourse) return;
-    if (mode === 'chat' && !chatText.trim()) return;
-    const question = chatText.trim();
-    setChatBusy(true);
-    setChatError('');
-    if (mode === 'chat') {
-      setChatMessages(prev => [...prev, { role: 'student', text: question }]);
-      setChatText('');
-    }
-    try {
-      const answer = await chatWithCourse({
-        mode,
-        question,
-        course: {
-          title: openCourse.title,
-          content: openCourse.content || '',
-          yt_url: openCourse.yt_url || firstYoutubeLink(openCourse.content) || '',
-        },
-        provider: chatModel,
-      });
-
-      setChatMessages(prev => [...prev, { role: 'assistant', text: answer }]);
-    } catch (err) {
-      setChatError(err.message);
-      toast.error('AI setup needs attention');
-    }
-    setChatBusy(false);
-  };
-
   const startLive = async () => {
-    router.push(`/live?module=${id}`);
+    if (!moduleId) return;
+    router.push(`/live?module=${String(moduleId)}`);
   };
 
   const stopLive = async () => {
     if (!live) return;
     setBusy(true);
-    await endLivestream(live.id).catch(() => {});
-    await fetch('/api/end-live', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ module_id: Number(id) }),
-    }).catch(() => {});
+    await endLivestream(live._id).catch(() => {});
     toast.success('Live session ended');
     setBusy(false);
     refresh();
   };
 
-  const openAndScroll = (c) => {
-    setOpenCourse(c);
-    setTimeout(() => playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
-  };
-
   if (loading) {
     return (
       <Layout>
-        <div className="page-header"><div className="skel" style={{ width: 120, height: 14 }} /></div>
+        <div className="page-header"><div className="skel" style={{ width: 140, height: 18 }} /></div>
         <div className="grid auto">
-          {[0, 1, 2].map(i => <div key={i} className="skel-card"><div className="skel" style={{ width: 80, height: 14 }} /><div className="skel" style={{ width: 160, height: 18 }} /></div>)}
+          {[0, 1, 2].map(i => <div key={i} className="skel-card" />)}
         </div>
       </Layout>
     );
   }
-  if (!mod) return <Layout><div className="empty">Module not found.</div></Layout>;
+  if (!mod && router.isReady) return <Layout><div className="empty">Module not found.</div></Layout>;
+  if (!router.isReady) {
+    return (
+      <Layout>
+        <div className="page-header"><div className="skel" style={{ width: 140, height: 18 }} /></div>
+        <div className="grid auto">
+          {[0, 1, 2].map(i => <div key={i} className="skel-card" />)}
+        </div>
+      </Layout>
+    );
+  }
 
   const embed = ytEmbed(openCourse?.yt_url || firstYoutubeLink(openCourse?.content));
 
   return (
     <Layout>
-      <div className="page-header">
-        <div className="crumb"><Link href="/browse">Browse</Link> / {mod.semester_label}</div>
-        <div className="row between">
-          <h1>{mod.name}</h1>
-          <div className="row">
-            {live && <span className="pill live">Live</span>}
-            {live && !canManage && (
-              <Link href={`/live?module=${id}`} className="btn live">Join live</Link>
-            )}
-            {live && canManage && (
-              <>
-                <Link href={`/live?module=${id}`} className="btn live">Open</Link>
-                <button className="btn ghost sm" onClick={stopLive} disabled={busy}>End</button>
-              </>
-            )}
-            {!live && canStartLive && (
-              <button className="btn live" onClick={startLive} disabled={busy}>
-                {busy ? 'Starting…' : 'Go live'}
-              </button>
-            )}
+      <FadeIn>
+        <div className="page-header">
+          <div className="crumb">
+            <Link href="/browse">Browse</Link> / {mod.faculty_name} / {mod.department_name} / {mod.level_name} / {mod.year_name} / {mod.semester_label}
           </div>
+          <div className="row between">
+            <h1>{mod.name}</h1>
+            <div className="row">
+              {live && <span className="pill live">Live</span>}
+              {live && !canManage && (
+                <Link href={`/live?module=${moduleId}`} className="btn live" style={{ padding: '12px 24px' }}>Join live</Link>
+              )}
+              {live && canManage && (
+                <>
+                  <Link href={`/live?module=${moduleId}`} className="btn live" style={{ padding: '12px 24px' }}>Open live</Link>
+                  <button className="btn ghost sm" onClick={stopLive} disabled={busy}>End</button>
+                </>
+              )}
+              {!live && canStartLive && (
+                <button className="btn live" onClick={startLive} disabled={busy} style={{ padding: '12px 24px' }}>
+                  {busy ? 'Starting…' : 'Go live'}
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="sub">{mod.owner_name || 'Unassigned'} · {courses.length} {courses.length === 1 ? 'course' : 'courses'}</p>
+          {canManage && (
+            <div style={{ marginTop: 14 }}>
+              {editingModule ? (
+                <form className="row" onSubmit={onUpdateModule} style={{ gap: 10, flexWrap: 'wrap' }}>
+                  <input className="input" value={moduleName} onChange={e => setModuleName(e.target.value)} style={{ maxWidth: 360 }} />
+                  <button className="btn sm" disabled={busy}>Save</button>
+                  <button type="button" className="btn ghost sm" onClick={() => { setEditingModule(false); setModuleName(mod.name); }}>Cancel</button>
+                </form>
+              ) : (
+                <button className="btn ghost sm" onClick={() => setEditingModule(true)}>Rename module</button>
+              )}
+            </div>
+          )}
         </div>
-        <p className="sub">{mod.owner_name || 'Unassigned'} · {courses.length} {courses.length === 1 ? 'course' : 'courses'}</p>
-        {canManage && (
-          <div style={{ marginTop: 12 }}>
-            {editingModule ? (
-              <form className="row" onSubmit={onUpdateModule} style={{ gap: 8, flexWrap: 'wrap' }}>
-                <input className="input" value={moduleName} onChange={e => setModuleName(e.target.value)} style={{ maxWidth: 320 }} />
-                <button className="btn sm" disabled={busy}>Save</button>
-                <button type="button" className="btn ghost sm" onClick={() => { setEditingModule(false); setModuleName(mod.name); }}>Cancel</button>
-              </form>
-            ) : (
-              <button className="btn ghost sm" onClick={() => setEditingModule(true)}>Rename module</button>
-            )}
-          </div>
-        )}
-      </div>
+      </FadeIn>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 28 }}>
         <div>
-          <div className="row between" style={{ marginBottom: 12 }}>
+          <div className="row between" style={{ marginBottom: 16 }}>
             <h2>Courses</h2>
             {canManage && !showAdd && (
               <button className="btn sm" onClick={() => setShowAdd(true)}>Add course</button>
@@ -375,8 +299,8 @@ export default function Module() {
           </div>
 
           {showAdd && (
-            <form className="card" onSubmit={onAddCourse} style={{ marginBottom: 20, border: '1px solid var(--ink)' }}>
-              <div className="row between" style={{ marginBottom: 12 }}>
+            <form className="card" onSubmit={onAddCourse} style={{ marginBottom: 24, border: '2px solid var(--accent)' }}>
+              <div className="row between" style={{ marginBottom: 14 }}>
                 <h3 style={{ margin: 0 }}>New Course</h3>
                 <button type="button" className="btn ghost sm" onClick={() => setShowAdd(false)}>Cancel</button>
               </div>
@@ -393,65 +317,6 @@ export default function Module() {
                   onChange={e => setNewCourse({ ...newCourse, content: e.target.value })}
                 />
               </div>
-              <div className="field">
-                <div className="row between">
-                  <label>AI course generator</label>
-                  <div className="row" style={{ gap: 6 }}>
-                    <button 
-                      type="button"
-                      className={`btn ghost xs ${chatModel === 'google' ? 'active' : ''}`}
-                      onClick={() => setChatModel('google')}
-                      style={{ padding: '2px 6px', fontSize: 10, background: chatModel === 'google' ? 'var(--ink)' : 'transparent', color: chatModel === 'google' ? 'white' : 'inherit' }}
-                    >
-                      Google
-                    </button>
-                    <button 
-                      type="button"
-                      className={`btn ghost xs ${chatModel === 'openrouter' ? 'active' : ''}`}
-                      onClick={() => setChatModel('openrouter')}
-                      style={{ padding: '2px 6px', fontSize: 10, background: chatModel === 'openrouter' ? 'var(--ink)' : 'transparent', color: chatModel === 'openrouter' ? 'white' : 'inherit' }}
-                    >
-                      Gemma
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  className="textarea"
-                  placeholder="Example: Create a beginner lesson about matrix multiplication with examples and exercises."
-                  value={aiPrompt}
-                  onChange={e => setAiPrompt(e.target.value)}
-                />
-                <button type="button" className="btn ghost sm" onClick={onGenerateCourse} disabled={aiBusy || !aiPrompt.trim()}>
-                  {aiBusy ? 'Generating...' : 'Generate draft'}
-                </button>
-                {aiError && (
-                  <div className="form-error">
-                    <div>{aiError}</div>
-                    <div className="row" style={{ marginTop: 8, gap: 6 }}>
-                      <input
-                        className="input"
-                        placeholder="Gemini API Key"
-                        value={geminiKeyInput}
-                        onChange={e => setGeminiKeyInput(e.target.value)}
-                      />
-                      <button type="button" className="btn sm" onClick={saveGeminiKey} disabled={!geminiKeyInput.trim()}>
-                        Save
-                      </button>
-                    </div>
-                    <div className="row" style={{ marginTop: 8, gap: 6 }}>
-                      <input
-                        className="input"
-                        placeholder="OpenRouter API Key (fallback)"
-                        value={openRouterKeyInput}
-                        onChange={e => setOpenRouterKeyInput(e.target.value)}
-                      />
-                      <button type="button" className="btn sm" onClick={saveOpenRouterKey} disabled={!openRouterKeyInput.trim()}>
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
               <button className="btn" type="submit" disabled={busy} style={{ width: '100%', justifyContent: 'center' }}>
                 {busy ? 'Adding...' : 'Create Course'}
               </button>
@@ -460,210 +325,179 @@ export default function Module() {
 
           {courses.length === 0 ? (
             <div className="empty">No courses uploaded yet.</div>
-          ) : courses.map(c => (
-            <div key={c.id}>
-              {editing?.id === c.id ? (
-                <form className="card" onSubmit={onUpdateCourse} style={{ marginBottom: 12, padding: 12 }}>
-                  <div className="field">
-                    <input className="input sm" value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} />
-                  </div>
-                  <div className="field">
-                    <textarea
-                      className="textarea"
-                      placeholder="Course content..."
-                      value={editing.content || ''}
-                      onChange={e => setEditing({ ...editing, content: e.target.value })}
-                    />
-                  </div>
-                  <div className="row">
-                    <button className="btn sm" type="submit">Save</button>
-                    <button className="btn ghost sm" type="button" onClick={() => setEditing(null)}>Cancel</button>
-                  </div>
-                </form>
-              ) : (
-                <div
-                  className="course-row"
-                  style={openCourse?.id === c.id ? { borderColor: 'var(--ink)', boxShadow: '0 0 0 3px rgba(10,10,10,0.04)' } : null}
-                >
-                  <div className="left" style={{ cursor: 'pointer' }} onClick={() => openAndScroll(c)}>
-                    <div className="ic">{(c.yt_url || firstYoutubeLink(c.content)) ? '▶' : '📄'}</div>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{c.title}</div>
-                      <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>
-                        {c.attachment_count || 0} {c.attachment_count === 1 ? 'file' : 'files'}
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {courses.map(c => (
+                <div key={c.id}>
+                  {editing?.id === c.id ? (
+                    <form className="card" onSubmit={onUpdateCourse} style={{ marginBottom: 14, padding: 16 }}>
+                      <div className="field">
+                        <input className="input" value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} />
+                      </div>
+                      <div className="field">
+                        <textarea className="textarea" value={editing.content || ''} onChange={e => setEditing({ ...editing, content: e.target.value })} />
+                      </div>
+                      <div className="row">
+                        <button className="btn sm" type="submit">Save</button>
+                        <button className="btn ghost sm" type="button" onClick={() => setEditing(null)}>Cancel</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div
+                      className="course-box"
+                      style={openCourse?.id === c.id ? { borderColor: 'var(--accent)', boxShadow: 'var(--ring)' } : {}}
+                    >
+                      <div className="header">
+                        <div className="title">{c.title}</div>
+                        <span className={`type-badge ${c.yt_url ? 'gradient' : 'pill'}`} style={c.yt_url ? { background: 'var(--gradient-live)', color: 'white' } : {}}>
+                          {c.yt_url ? '▶ Video' : '📄 Course'}
+                        </span>
+                      </div>
+                      {c.content && (
+                        <div className="content-preview">{c.content.slice(0, 200)}...</div>
+                      )}
+                      {c.attachments && c.attachments.length > 0 && (
+                        <div className="attachments">
+                          {c.attachments.map(a => (
+                            <button
+                              key={a.id}
+                              className="attachment-chip"
+                              onClick={() => handleAttachmentClick(a.file_name, a.file_path)}
+                            >
+                              {a.file_type === 'pdf' ? '📄' : a.file_type === 'docx' ? '📝' : '📊'} {a.file_name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="row between" style={{ marginTop: 4 }}>
+                        <div className="row" style={{ gap: 8 }}>
+                          {user && (
+                            <button className={`fav ${favs.has(c.id) ? 'on' : ''}`} onClick={() => star(c.id)} aria-label="Favorite">
+                              {favs.has(c.id) ? '★' : '☆'}
+                            </button>
+                          )}
+                          {canManage && (
+                            <>
+                              <button className="btn ghost xs" onClick={() => setEditing(c)}>Edit</button>
+                              <button className="btn ghost xs" onClick={() => onDeleteCourse(c.id)} style={{ color: 'var(--danger)' }}>Delete</button>
+                            </>
+                          )}
+                        </div>
+                        <div className="row" style={{ gap: 8 }}>
+                          <Link href={`/chat?courseId=${c.id}&courseTitle=${encodeURIComponent(c.title)}&mode=summarize`} className="btn sm">
+                            🤖 Summarize
+                          </Link>
+                          <button className="btn sm" onClick={() => setOpenCourse(c)}>
+                            {openCourse?.id === c.id ? 'Opened' : 'Open'}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="row" style={{ gap: 6 }}>
-                    {user && (
-                      <button className={`fav ${favs.has(c.id) ? 'on' : ''}`} onClick={() => star(c.id)} aria-label="Favorite">
-                        {favs.has(c.id) ? '★' : '☆'}
-                      </button>
-                    )}
-                    {canManage && (
-                      <>
-                        <button className="btn ghost sm" onClick={() => setEditing(c)}>Edit</button>
-                        <button className="btn ghost sm" onClick={() => onDeleteCourse(c.id)} style={{ color: 'var(--danger)' }}>Delete</button>
-                      </>
-                    )}
-                    <button className="btn ghost sm" onClick={() => openAndScroll(c)}>Open</button>
-                  </div>
+                  )}
                 </div>
-              )}
+              ))}
             </div>
-          ))}
+          )}
 
           {openCourse && (
             <>
               <div className="divider" />
-              <div ref={playerRef}>
-                <div className="row between" style={{ marginBottom: 12 }}>
-                  <h2 style={{ margin: 0 }}>{openCourse.title}</h2>
+              <FadeIn>
+                <div style={{ marginBottom: 16 }}>
+                  <h2>{openCourse.title}</h2>
                 </div>
                 {embed ? (
                   <iframe
                     src={embed}
-                    style={{ width: '100%', aspectRatio: '16/9', border: 0, borderRadius: 'var(--radius)' }}
+                    style={{ width: '100%', aspectRatio: '16/9', border: 0, borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg)' }}
                     allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
                     allowFullScreen
                   />
                 ) : (
                   <div style={{
-                    aspectRatio: '16 / 9', background: '#0a0a0a',
+                    aspectRatio: '16 / 9', background: '#0f1117',
                     borderRadius: 'var(--radius)', display: 'grid', placeItems: 'center',
-                    color: '#525252', fontSize: 13,
+                    color: '#9ca3af', fontSize: 14, fontWeight: 500,
                   }}>
-                    No video — see attachments
+                    No video — see attachments below
                   </div>
                 )}
                 {openCourse.content && (
-                  <div className="course-content">
+                  <div className="course-content" style={{ marginTop: 20, borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)' }}>
                     {openCourse.content}
                   </div>
                 )}
-                {attach.length > 0 && (
-                  <div className="inline-files">
-                    {attach.map(a => <AttachmentPreview key={a.id} attachment={a} />)}
+                {openCourse.attachments && openCourse.attachments.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <h3 style={{ marginBottom: 12 }}>Attachments</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {openCourse.attachments.map(a => (
+                        <button
+                          key={a.id}
+                          className="attach"
+                          onClick={() => handleAttachmentClick(a.file_name, a.file_path)}
+                          style={{ textAlign: 'left', cursor: 'pointer' }}
+                        >
+                          <div className="row" style={{ gap: 12, flex: 1 }}>
+                            <span style={{ fontSize: 22 }}>
+                              {a.file_type === 'pdf' ? '📄' : a.file_type === 'docx' ? '📝' : '📊'}
+                            </span>
+                            <div className="name" style={{ fontWeight: 600 }}>{a.file_name}</div>
+                          </div>
+                          <span className="pill" style={{ flexShrink: 0 }}>
+                            {a.file_type === 'pdf' ? 'Open' : 'Download'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </div>
+              </FadeIn>
             </>
           )}
         </div>
 
         <div>
-          <div className="card" style={{ marginBottom: 14 }}>
-            <div className="row between" style={{ marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}>
-                Files
-                {openCourse && <span style={{ fontWeight: 400, color: 'var(--ink-3)', fontSize: 12, marginLeft: 6 }}>· {openCourse.title}</span>}
-              </h3>
-              {canManage && openCourse && (
-                <label className="btn ghost sm" style={{ cursor: 'pointer' }}>
-                  Add
+          <FadeIn delay={150} direction="right">
+            <div className="card" style={{ marginBottom: 18 }}>
+              <h3 style={{ marginBottom: 12 }}>About</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14, color: 'var(--ink-2)', fontWeight: 500 }}>
+                <div className="row" style={{ gap: 8 }}><span>🏫</span> {mod.faculty_name}</div>
+                <div className="row" style={{ gap: 8 }}><span>🏢</span> {mod.department_name}</div>
+                <div className="row" style={{ gap: 8 }}><span>📅</span> {mod.level_name} · {mod.year_name}</div>
+                <div className="row" style={{ gap: 8 }}><span>📆</span> {mod.semester_label}</div>
+                <div className="row" style={{ gap: 8 }}><span>👨‍🏫</span> {mod.owner_name || 'Unassigned'}</div>
+              </div>
+            </div>
+          </FadeIn>
+
+          {canManage && openCourse && (
+            <FadeIn delay={200} direction="right">
+              <div className="card" style={{ marginBottom: 18 }}>
+                <h3 style={{ marginBottom: 12 }}>Manage Files</h3>
+                <label className="btn" style={{ width: '100%', cursor: 'pointer' }}>
+                  Add Attachment
                   <input type="file" hidden onChange={e => onFileUpload(e, openCourse.id)} />
                 </label>
-              )}
-            </div>
-            {attach.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>No files for this course.</div>
-            ) : attach.map(a => (
-              <div key={a.id} className="attach">
-                <div className="name" title={a.file_name}>{a.file_name}</div>
-                <div className="row" style={{ gap: 4 }}>
-                  <a className="btn ghost sm" href={publicUrl('course-files', a.file_path)} target="_blank" rel="noreferrer">
-                    ↓
-                  </a>
-                  {canManage && (
-                    <button className="btn ghost sm" onClick={() => onRemoveAttach(a.id)} style={{ color: 'var(--danger)' }}>×</button>
-                  )}
-                </div>
               </div>
-            ))}
-          </div>
+            </FadeIn>
+          )}
 
-          <div className="card">
-            <h3 style={{ marginBottom: 8 }}>About</h3>
-            <p style={{ fontSize: 13, color: 'var(--ink-2)' }}>
-              {mod.semester_label} · taught by {mod.owner_name || 'Unassigned'}.
-            </p>
-          </div>
-
-          {openCourse && !canManage && (
-            <div className="card course-ai">
-              <div className="row between" style={{ marginBottom: 10 }}>
-                <div className="column">
-                  <h3 style={{ margin: 0 }}>Course assistant</h3>
-                  <div className="row" style={{ gap: 8, marginTop: 4 }}>
-                    <button 
-                      className={`btn ghost xs ${chatModel === 'google' ? 'active' : ''}`}
-                      onClick={() => setChatModel('google')}
-                      style={{ padding: '2px 6px', fontSize: 10, background: chatModel === 'google' ? 'var(--ink)' : 'transparent', color: chatModel === 'google' ? 'white' : 'inherit' }}
-                    >
-                      Google
-                    </button>
-                    <button 
-                      className={`btn ghost xs ${chatModel === 'openrouter' ? 'active' : ''}`}
-                      onClick={() => setChatModel('openrouter')}
-                      style={{ padding: '2px 6px', fontSize: 10, background: chatModel === 'openrouter' ? 'var(--ink)' : 'transparent', color: chatModel === 'openrouter' ? 'white' : 'inherit' }}
-                    >
-                      Gemma
-                    </button>
-                  </div>
-                </div>
-                <button className="btn ghost sm" onClick={() => askCourse('summary')} disabled={chatBusy}>
-                  Summarize
-                </button>
+          {openCourse && (
+            <FadeIn delay={250} direction="right">
+              <div className="card">
+                <h3 style={{ marginBottom: 12 }}>AI Assistant</h3>
+                <p style={{ fontSize: 14, color: 'var(--ink-3)', marginBottom: 14, fontWeight: 500 }}>
+                  Summarize this course or chat with AI about it.
+                </p>
+                <Link href={`/chat?courseId=${openCourse.id}&courseTitle=${encodeURIComponent(openCourse.title)}&mode=summarize`} className="btn" style={{ width: '100%', marginBottom: 10 }}>
+                  🤖 Summarize
+                </Link>
+                <Link href={`/chat?courseId=${openCourse.id}&courseTitle=${encodeURIComponent(openCourse.title)}`} className="btn ghost" style={{ width: '100%' }}>
+                  💬 Chat about course
+                </Link>
               </div>
-              <div className="course-ai-body">
-                {chatMessages.length === 0 ? (
-                  <div className="empty" style={{ padding: 16 }}>
-                    {chatError || 'Ask about this course or summarize it.'}
-                    {chatError && (
-                      <div className="column" style={{ marginTop: 10, gap: 6 }}>
-                        <div className="row" style={{ gap: 6 }}>
-                          <input
-                            className="input"
-                            placeholder="Gemini API Key"
-                            value={geminiKeyInput}
-                            onChange={e => setGeminiKeyInput(e.target.value)}
-                          />
-                          <button type="button" className="btn sm" onClick={saveGeminiKey} disabled={!geminiKeyInput.trim()}>
-                            Save
-                          </button>
-                        </div>
-                        <div className="row" style={{ gap: 6 }}>
-                          <input
-                            className="input"
-                            placeholder="OpenRouter API Key (fallback)"
-                            value={openRouterKeyInput}
-                            onChange={e => setOpenRouterKeyInput(e.target.value)}
-                          />
-                          <button type="button" className="btn sm" onClick={saveOpenRouterKey} disabled={!openRouterKeyInput.trim()}>
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : chatMessages.map((m, i) => (
-                  <div key={i} className={`ai-msg ${m.role}`}>
-                    {m.text}
-                  </div>
-                ))}
-                {chatBusy && <div className="ai-msg assistant">Thinking...</div>}
-                {chatError && chatMessages.length > 0 && <div className="form-error">{chatError}</div>}
-              </div>
-              <form className="chat-input" onSubmit={(e) => { e.preventDefault(); askCourse('chat'); }}>
-                <input
-                  placeholder="Ask about this course..."
-                  value={chatText}
-                  onChange={e => setChatText(e.target.value)}
-                  disabled={chatBusy}
-                />
-                <button className="btn sm" disabled={chatBusy || !chatText.trim()}>Ask</button>
-              </form>
-            </div>
+            </FadeIn>
           )}
         </div>
       </div>

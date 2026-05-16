@@ -22,10 +22,9 @@ export default function Professor() {
   const loadData = async () => {
     const { data: allModules } = await listAdminModules();
     setModules(allModules || []);
-    
     if (user) {
       const { data: reqs } = await listAccessRequests();
-      setRequests((reqs || []).filter(r => r.professor_id === user.id));
+      setRequests((reqs || []).filter(r => r.professorId === user.id));
     }
     setLoading(false);
   };
@@ -38,9 +37,9 @@ export default function Professor() {
     setRequesting(module.id);
     try {
       const { error } = await createAccessRequest({
-        professor_id: user.id,
+        professorId: user.id,
         professor_name: user.name,
-        module_id: module.id,
+        moduleId: module.id,
         module_name: module.name,
       });
       if (error) throw error;
@@ -52,12 +51,12 @@ export default function Professor() {
     setRequesting(null);
   };
 
-  const filteredModules = modules.filter(m => 
+  const filteredModules = modules.filter(m =>
     m.name?.toLowerCase().includes(search.toLowerCase())
   );
 
   const getStatus = (moduleId) => {
-    const req = requests.find(r => r.module_id === moduleId);
+    const req = requests.find(r => r.moduleId === moduleId);
     return req ? req.status : null;
   };
 
@@ -74,7 +73,6 @@ export default function Professor() {
         </div>
       </FadeIn>
 
-      {/* Stats */}
       <FadeIn delay={100}>
         <div className="grid cols-3" style={{ marginBottom: 32 }}>
           <div className="stat-card">
@@ -92,7 +90,6 @@ export default function Professor() {
         </div>
       </FadeIn>
 
-      {/* Search */}
       <FadeIn delay={150}>
         <div className="card" style={{ marginBottom: 28 }}>
           <h3 style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, fontSize: 16 }}>
@@ -108,7 +105,6 @@ export default function Professor() {
         </div>
       </FadeIn>
 
-      {/* My Requests */}
       {requests.length > 0 && (
         <FadeIn delay={200}>
           <div style={{ marginBottom: 32 }}>
@@ -118,11 +114,11 @@ export default function Professor() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {requests.map(req => (
-                <div key={req.id} className="card" style={{ padding: 20 }}>
+                <div key={req.id} className="card" style={{ padding: 22 }}>
                   <div className="row between">
                     <div>
-                      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{req.module_name}</div>
-                      <div style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>
+                      <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>{req.module_name}</div>
+                      <div style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 600 }}>
                         Demandé le {new Date(req.created_at).toLocaleDateString()}
                       </div>
                     </div>
@@ -137,14 +133,13 @@ export default function Professor() {
         </FadeIn>
       )}
 
-      {/* Available Modules */}
       <FadeIn delay={250}>
         <div className="row" style={{ marginBottom: 18, gap: 10 }}>
           <span style={{ fontSize: 24 }}>📦</span>
           <h2 style={{ fontSize: 22 }}>Modules disponibles</h2>
         </div>
       </FadeIn>
-      
+
       {loading ? (
         <div className="grid auto">
           {[0, 1, 2].map(i => <div key={i} className="skel-card" />)}
@@ -153,7 +148,7 @@ export default function Professor() {
         <FadeIn>
           <div className="empty">
             <span className="empty-icon">📦</span>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>Aucun module trouvé</div>
+            <div style={{ fontSize: 18, fontWeight: 800 }}>Aucun module trouvé</div>
           </div>
         </FadeIn>
       ) : (
@@ -163,12 +158,12 @@ export default function Professor() {
             return (
               <FadeIn key={m.id} delay={i * 80}>
                 <div className="card hover" style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div className="row between" style={{ marginBottom: 12 }}>
+                  <div className="row between" style={{ marginBottom: 14 }}>
                     <span className="pill gradient-3">{m.semester_label || 'Semestre'}</span>
-                    <span style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>{m.course_count || 0} cours</span>
+                    <span style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 600 }}>{m.course_count || 0} cours</span>
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{m.name}</div>
-                  <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 16, fontWeight: 500 }}>
+                  <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 10 }}>{m.name}</div>
+                  <div style={{ fontSize: 14, color: 'var(--ink-3)', marginBottom: 18, fontWeight: 600 }}>
                     {m.owner_name || 'Non assigné'}
                   </div>
                   <div className="spacer" />
@@ -181,8 +176,8 @@ export default function Professor() {
                       ⏳ Demande en cours...
                     </button>
                   ) : (
-                    <button 
-                      className="btn" 
+                    <button
+                      className="btn"
                       style={{ width: '100%' }}
                       onClick={() => requestAccess(m)}
                       disabled={requesting === m.id}

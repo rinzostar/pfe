@@ -1,0 +1,5 @@
+(node:28512) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+- Preparing Convex functions...
+
+[32m✔[39m 21:49:02 Convex functions ready! (2s)

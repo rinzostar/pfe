@@ -31,41 +31,35 @@ export default function Profile() {
         </div>
       </FadeIn>
 
-      {/* Cover Image */}
       <FadeIn delay={100}>
-        <div className="card" style={{ 
-          padding: 0, 
-          overflow: 'hidden', 
-          marginBottom: 28,
-          position: 'relative'
-        }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 32 }}>
           <div style={{
-            height: 160,
-            background: 'var(--bg-gradient)',
+            height: 180,
+            background: 'var(--gradient-1)',
             position: 'relative',
             overflow: 'hidden'
           }}>
-            <div style={{ position: 'absolute', top: -50, right: -50, fontSize: 200, opacity: 0.1 }}>🎓</div>
-            <div style={{ position: 'absolute', bottom: -30, left: 40, fontSize: 150, opacity: 0.08 }}>📚</div>
+            <div style={{ position: 'absolute', top: -60, right: -60, fontSize: 240, opacity: 0.08 }}>🎓</div>
+            <div style={{ position: 'absolute', bottom: -40, left: 50, fontSize: 180, opacity: 0.06 }}>📚</div>
           </div>
-          <div style={{ padding: '0 32px 32px', position: 'relative' }}>
+          <div style={{ padding: '0 36px 36px', position: 'relative' }}>
             <div style={{
-              width: 100, height: 100, borderRadius: '50%',
-              background: 'var(--bg-gradient-2)',
+              width: 110, height: 110, borderRadius: '50%',
+              background: 'var(--gradient-2)',
               display: 'grid', placeItems: 'center',
-              marginTop: -50,
-              fontSize: 40, color: 'white', fontWeight: 800,
-              boxShadow: '0 8px 32px rgba(245, 87, 108, 0.3)',
+              marginTop: -55,
+              fontSize: 44, color: 'white', fontWeight: 800,
+              boxShadow: '0 8px 40px rgba(245, 87, 108, 0.35)',
               border: '4px solid var(--surface)',
               position: 'relative',
               zIndex: 2
             }}>
               {initials}
             </div>
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>{user?.name || 'Utilisateur'}</div>
-              <div className="pill gradient-2" style={{ marginBottom: 8 }}>{roleLabel}</div>
-              <div style={{ fontSize: 14, color: 'var(--ink-3)', fontWeight: 500 }}>
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>{user?.name || 'Utilisateur'}</div>
+              <div className="pill gradient-2" style={{ marginBottom: 10 }}>{roleLabel}</div>
+              <div style={{ fontSize: 15, color: 'var(--ink-3)', fontWeight: 600 }}>
                 {user?.email || 'email@school.edu'}
               </div>
             </div>
@@ -73,7 +67,7 @@ export default function Profile() {
         </div>
       </FadeIn>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 28 }}>
         <div>
           <FadeIn delay={150}>
             <div className="card" style={{ marginBottom: 24 }}>
@@ -85,7 +79,7 @@ export default function Profile() {
                   {editing ? '✕ Annuler' : '✏️ Modifier'}
                 </button>
               </div>
-              
+
               {editing ? (
                 <div>
                   <div className="field">
@@ -106,29 +100,28 @@ export default function Profile() {
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                   <div>
-                    <div style={{ fontSize: 12, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8 }}>Nom complet</div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{user?.name || 'Non renseigné'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 800, marginBottom: 8 }}>Nom complet</div>
+                    <div style={{ fontSize: 17, fontWeight: 700 }}>{user?.name || 'Non renseigné'}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8 }}>Email</div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{user?.email || 'Non renseigné'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 800, marginBottom: 8 }}>Email</div>
+                    <div style={{ fontSize: 17, fontWeight: 700 }}>{user?.email || 'Non renseigné'}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8 }}>Rôle</div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{roleLabel}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 800, marginBottom: 8 }}>Rôle</div>
+                    <div style={{ fontSize: 17, fontWeight: 700 }}>{roleLabel}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8 }}>Bio</div>
-                    <div style={{ fontSize: 16, color: 'var(--ink-2)', lineHeight: 1.6 }}>{form.bio}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 800, marginBottom: 8 }}>Bio</div>
+                    <div style={{ fontSize: 16, color: 'var(--ink-2)', lineHeight: 1.7, fontWeight: 500 }}>{form.bio}</div>
                   </div>
                 </div>
               )}
             </div>
           </FadeIn>
 
-          {/* Activity Timeline */}
           <FadeIn delay={200}>
             <div className="card">
               <h3 style={{ marginBottom: 24, fontSize: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -142,9 +135,9 @@ export default function Profile() {
                   { icon: '🎥', title: 'Live rejoint', desc: 'Session de Dr. M. Chérif', time: '2j ago' },
                 ].map((item, i) => (
                   <div key={i} className="timeline-item">
-                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{item.icon} {item.title}</div>
-                    <div style={{ fontSize: 14, color: 'var(--ink-2)', marginBottom: 4 }}>{item.desc}</div>
-                    <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{item.time}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>{item.icon} {item.title}</div>
+                    <div style={{ fontSize: 14, color: 'var(--ink-2)', marginBottom: 4, fontWeight: 500 }}>{item.desc}</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 600 }}>{item.time}</div>
                   </div>
                 ))}
               </div>
@@ -152,28 +145,27 @@ export default function Profile() {
           </FadeIn>
         </div>
 
-        {/* Right Sidebar */}
         <div>
           <FadeIn delay={200} direction="right">
             <div className="card" style={{ marginBottom: 20 }}>
               <h3 style={{ marginBottom: 18, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>📊</span> Statistiques
               </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <div className="row between">
-                  <span style={{ fontSize: 14, color: 'var(--ink-3)', fontWeight: 500 }}>⭐ Favoris</span>
-                  <span style={{ fontSize: 20, fontWeight: 800, background: 'var(--bg-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>5</span>
+                  <span style={{ fontSize: 14, color: 'var(--ink-3)', fontWeight: 600 }}>⭐ Favoris</span>
+                  <span style={{ fontSize: 24, fontWeight: 800, background: 'var(--gradient-1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>5</span>
                 </div>
                 <div className="progress-bar">
                   <div className="progress-bar-fill" style={{ width: '62%' }} />
                 </div>
                 <div className="row between">
-                  <span style={{ fontSize: 14, color: 'var(--ink-3)', fontWeight: 500 }}>💬 Posts</span>
-                  <span style={{ fontSize: 20, fontWeight: 800, background: 'var(--bg-gradient-2)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>3</span>
+                  <span style={{ fontSize: 14, color: 'var(--ink-3)', fontWeight: 600 }}>💬 Posts</span>
+                  <span style={{ fontSize: 24, fontWeight: 800, background: 'var(--gradient-2)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>3</span>
                 </div>
                 <div className="row between">
-                  <span style={{ fontSize: 14, color: 'var(--ink-3)', fontWeight: 500 }}>📚 Modules</span>
-                  <span style={{ fontSize: 20, fontWeight: 800, background: 'var(--bg-gradient-3)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>8</span>
+                  <span style={{ fontSize: 14, color: 'var(--ink-3)', fontWeight: 600 }}>📚 Modules</span>
+                  <span style={{ fontSize: 24, fontWeight: 800, background: 'var(--gradient-3)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>8</span>
                 </div>
               </div>
             </div>
@@ -184,25 +176,25 @@ export default function Profile() {
               <h3 style={{ marginBottom: 18, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>⚙️</span> Préférences
               </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <div className="row between">
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>🔔 Notifications push</div>
-                    <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>Alertes pour nouveaux posts et lives</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>🔔 Notifications push</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>Alertes pour nouveaux posts et lives</div>
                   </div>
                   <div className="pill gradient" style={{ fontSize: 11 }}>Activé</div>
                 </div>
                 <div className="row between">
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>🌙 Mode sombre</div>
-                    <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>Thème d'interface</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>🌙 Mode sombre</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>Thème d'interface</div>
                   </div>
                   <div className="pill" style={{ fontSize: 11 }}>Bientôt</div>
                 </div>
                 <div className="row between">
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>📧 Newsletter</div>
-                    <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>Résumé hebdomadaire</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>📧 Newsletter</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>Résumé hebdomadaire</div>
                   </div>
                   <div className="pill gradient-4" style={{ fontSize: 11 }}>Activé</div>
                 </div>

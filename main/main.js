@@ -1,11 +1,6 @@
 const { app, BrowserWindow, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const env = require('./env');
-const { setupApiHandlers } = require('./api');
-
-// Load environment variables into process.env
-Object.assign(process.env, env);
 
 // Register custom protocol to handle Next.js absolute paths
 function registerAppProtocol() {
@@ -62,7 +57,6 @@ protocol.registerSchemesAsPrivileged([
 
 app.whenReady().then(() => {
   registerAppProtocol();
-  setupApiHandlers();
   createWindow();
   
   app.on('activate', () => {
